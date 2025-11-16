@@ -1,0 +1,4 @@
+repository "WildlifeGuardian3D 2025-11-04_10-25-20/WildlifeGuardian3D@18968344557018@cloud"
+  path "/"
+    br "/main"
+    co "/main"
