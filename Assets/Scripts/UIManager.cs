@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using System.Collections; 
 
 public class UIManager : MonoBehaviour
 {
@@ -24,6 +25,7 @@ public class UIManager : MonoBehaviour
     public TMP_Text labelJudul;
     
     [Header("UI Panel Timing")]
+    
     public Slider timingBar;
     public RectTransform timingBarRect;
     public RectTransform successZoneRect;
@@ -41,5 +43,23 @@ public class UIManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    public void ShowSuccessMessage(string message, float duration)
+    {
+        StartCoroutine(DisplayMessageRoutine(message, duration));
+    }
+
+    IEnumerator DisplayMessageRoutine(string message, float duration)
+    {
+        interactTextObject.SetActive(true);
+        interactTextComponent.text = message;
+        interactTextComponent.color = Color.yellow; // Biar beda, kasih warna kuning (opsional)
+
+        yield return new WaitForSeconds(duration);
+
+        interactTextComponent.text = ""; // Kosongkan
+        interactTextComponent.color = Color.white; // Balikin warna
+        interactTextObject.SetActive(false);
     }
 }
