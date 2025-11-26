@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // Wajib untuk Slider
+using UnityEngine.UI; 
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -15,35 +15,38 @@ public class PlayerMovement : MonoBehaviour
     public float gravityValue = -9.81f;
     public float turnSmoothTime = 0.1f;
 
-    // --- MEKANIKA LOMPAT ---
-    public float jumpHeight = 1.5f; // Tinggi lompatan
-    // -----------------------
+    [Header("Pengaturan Lompat")]
+    public float jumpHeight = 1.5f;
+
+    [Header("Audio Langkah Kaki (BARU)")]
+    public float stepIntervalWalk = 0.5f;   // Jarak bunyi pas jalan
+    public float stepIntervalSprint = 0.3f; // Jarak bunyi pas lari (lebih cepat)
+    private float stepTimer = 0f;
 
     private float turnSmoothVelocity;
     private Vector3 playerVelocity;
     
-    [Header("Inventori (DARI KODEMU)")]
+    [Header("Inventori")]
     public bool isHoldingItem = false; 
 
-    // ----- MEKANIKA STAMINA (FINAL) -----
     [Header("Pengaturan Stamina")]
     public float maxStamina = 100f; 
     private float currentStamina;
     public float staminaDrainRate = 15f; 
     public float staminaRegenRate = 10f; 
     public Slider staminaBar; 
-    // ------------------------------------
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
         
-        // Cari animator kalau belum di-assign
         if(animator == null) animator = GetComponentInChildren<Animator>(); 
         
+        // Setup Kursor
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         
+        // Setup Stamina
         currentStamina = maxStamina; 
         if(staminaBar != null)
         {
@@ -54,77 +57,113 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        // 1. TANGANI GRAVITASI & GROUND CHECK
+        // 1. GRAVITASI & GROUND CHECK
         bool isGrounded = controller.isGrounded;
         if (isGrounded && playerVelocity.y < 0)
         {
-            playerVelocity.y = -2f;
+            playerVelocity.y = -2f; // Reset vertikal velocity pas napak tanah
         }
 
-        // --- LOGIKA LOMPAT ---
+        // 2. LOMPAT
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            // Rumus Fisika untuk Lompat: v = akar(h * -2 * g)
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
             
-            // (Opsional) Kalau nanti ada animasi lompat:
-            // animator.SetTrigger("Jump"); 
+            // Kalau punya animasi lompat:
+            // if(animator) animator.SetTrigger("Jump");
         }
-        // ---------------------
 
-        // 2. CEK INPUT GERAK
+        // 3. INPUT GERAK
         float horizontalInput = Input.GetAxis("Horizontal"); 
         float verticalInput = Input.GetAxis("Vertical"); 
         Vector3 direction = new Vector3(horizontalInput, 0f, verticalInput).normalized;
 
-        // ----- LOGIKA SPRINT (FINAL FIX) -----
+        // 4. LOGIKA SPRINT & STAMINA
+        bool isSprinting = Input.GetKey(KeyCode.LeftShift) && currentStamina > 0 && direction.magnitude >= 0.1f;
         
-        bool isSprinting = Input.GetKey(KeyCode.LeftShift) && currentStamina > 0;
-        
-        float currentSpeed;
-        if (isSprinting && direction.magnitude >= 0.1f)
+        float currentSpeed = normalSpeed;
+
+        if (isSprinting)
         {
-            // --- JIKA SEDANG SPRINT ---
+            // SPRINTING
             currentSpeed = sprintSpeed;
             currentStamina -= staminaDrainRate * Time.deltaTime; 
         }
         else
         {
-            // --- JIKA JALAN BIASA (ATAU DIAM) ---
+            // WALKING / IDLE
             currentSpeed = normalSpeed;
             
-            // Cek apakah player SEDANG menahan Shift (tapi stamina 0/habis)
+            // Cek: Apakah player maksa lari tapi stamina habis?
             bool isTryingToSprint = Input.GetKey(KeyCode.LeftShift) && direction.magnitude >= 0.1f;
             
-            // HANYA isi stamina kalau pemain TIDAK menahan tombol lari
+            // Regen cuma kalau TIDAK nekan Shift
             if (!isTryingToSprint && currentStamina < maxStamina) 
             {
                 currentStamina += staminaRegenRate * Time.deltaTime;
             }
         }
         
+        // Update UI Stamina
         currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
         if(staminaBar != null) staminaBar.value = currentStamina;
-        // --------------------------------
 
-        // 3. LOGIKA ROTASI
+        // 5. EKSEKUSI GERAK & ROTASI
         if (direction.magnitude >= 0.1f)
         {
+            // Hitung Rotasi (Ikuti Kamera)
             float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cam.eulerAngles.y;
             float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
             transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
+            // Hitung Arah Gerak
             Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
             
-            // 4. EKSEKUSI GERAKAN
+            // Gerakkan Karakter
             controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime); 
+
+            // --- AUDIO LANGKAH KAKI (INTEGRASI) ---
+            if (isGrounded)
+            {
+                // Kurangi timer
+                stepTimer -= Time.deltaTime;
+
+                if (stepTimer <= 0)
+                {
+                    // Bunyikan suara lewat AudioManager
+                    if (AudioManager.instance != null && AudioManager.instance.sfxJalan != null)
+                    {
+                        AudioManager.instance.PlaySFX(AudioManager.instance.sfxJalan);
+                    }
+
+                    // Reset timer (pilih interval Lari atau Jalan)
+                    stepTimer = isSprinting ? stepIntervalSprint : stepIntervalWalk;
+                }
+            }
+        }
+        else
+        {
+            // Kalau diam, reset timer langkah biar pas jalan langsung bunyi
+            stepTimer = 0.1f;
         }
 
-        // 5. TERAPKAN GRAVITASI & LOMPAT
+        // 6. TERAPKAN GRAVITASI
         playerVelocity.y += gravityValue * Time.deltaTime;
         controller.Move(playerVelocity * Time.deltaTime);
 
-        // 6. KIRIM SINYAL KE ANIMATOR
-        if(animator != null) animator.SetFloat("Speed", direction.magnitude);
+        // 7. UPDATE ANIMATOR
+        if(animator != null)
+        {
+            // Kirim 0 kalau diam, 0.5 kalau jalan, 1 kalau lari
+            // (Sesuaikan Blend Tree kamu kalau beda angkanya)
+            float animSpeed = 0f;
+            if (direction.magnitude >= 0.1f)
+            {
+                animSpeed = isSprinting ? 1f : 0.5f; 
+            }
+            
+            // Pakai DampTime biar transisi animasinya halus (gak kaku)
+            animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
+        }
     }
 }

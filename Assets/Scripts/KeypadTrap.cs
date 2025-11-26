@@ -9,13 +9,13 @@ public class KeypadTrap : MonoBehaviour
 
     [Header("Petunjuk (SDGs/Edukasi)")]
     public bool isClueGiver = false; 
-    [TextArea] public string clueMessage = "Hutan ini melindungi spesies langka."; // Pakai TextArea biar enak ngetik panjang
+    [TextArea] public string clueMessage = "Hutan ini melindungi spesies langka."; 
     public float messageDuration = 5f;
 
     [Header("Pengaturan Hadiah")]
     public GameObject hewanPrefab; 
 
-    // Variabel UI
+    // Referensi UI (Diambil dari UIManager)
     private TMP_Text interactTextComponent;
     private GameObject interactTextObject;
     private GameObject panelGembok;
@@ -26,7 +26,7 @@ public class KeypadTrap : MonoBehaviour
 
     void Start()
     {
-        // --- AMBIL REFERENSI SAJA DI SINI ---
+        // Ambil referensi dari UIManager
         if (UIManager.instance != null)
         {
             interactTextComponent = UIManager.instance.interactTextComponent;
@@ -35,9 +35,6 @@ public class KeypadTrap : MonoBehaviour
             inputKode = UIManager.instance.inputKode;
             labelJudul = UIManager.instance.labelJudul;
         }
-        
-        // ❌ JANGAN AddListener DI SINI! 
-        // Kalau di sini, nanti tombolnya rebutan sama kandang lain.
     }
 
     private void OnTriggerEnter(Collider other)
@@ -70,22 +67,22 @@ public class KeypadTrap : MonoBehaviour
 
     void OpenKeypad()
     {
-        // --- PASANG LISTENER DI SINI (SAAT PANEL DIBUKA) ---
-        // 1. Reset dulu biar gak numpuk
+        // Reset Listener tombol biar gak rebutan sama kandang lain
         UIManager.instance.tombolBuka.onClick.RemoveAllListeners(); 
         UIManager.instance.tombolTutup.onClick.RemoveAllListeners();
 
-        // 2. Baru pasang fungsi punya kandang INI
+        // Pasang fungsi kandang ini ke tombol UI
         UIManager.instance.tombolBuka.onClick.AddListener(CheckCode); 
         UIManager.instance.tombolTutup.onClick.AddListener(CloseKeypad); 
 
-        // Reset text input & judul biar bersih pas dibuka
+        // Reset tampilan UI
         inputKode.text = "";
         labelJudul.text = "Masukkan Kode Pengaman";
 
         panelGembok.SetActive(true); 
         interactTextObject.SetActive(false); 
         
+        // Munculkan kursor buat ngetik
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
     }
@@ -94,11 +91,13 @@ public class KeypadTrap : MonoBehaviour
     {
         if (!panelGembok.activeSelf) return; 
         
-        // Opsional: Hapus listener lagi biar aman
+        // Hapus listener biar bersih
         UIManager.instance.tombolBuka.onClick.RemoveAllListeners();
         UIManager.instance.tombolTutup.onClick.RemoveAllListeners();
 
         panelGembok.SetActive(false); 
+        
+        // Sembunyikan kursor lagi
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
@@ -107,36 +106,36 @@ public class KeypadTrap : MonoBehaviour
     {
         string codeAttempt = inputKode.text;
 
-        // Trim() berguna untuk menghapus spasi yang tidak sengaja terketik
         if (codeAttempt.Trim() == correctCode)
         {
             Debug.Log("KODE BENAR!");
             CloseKeypad();
             
-            // --- MENAMPILKAN PETUNJUK (Pastikan UIManager punya fungsi ini) ---
+            // --- Tampilkan Petunjuk Individual (Jika ada) ---
+            // Catatan: Jika ini jebakan terakhir, pesan ini mungkin akan tertimpa
+            // oleh pesan "Mission Complete" dari GameManager. Itu normal.
             if (isClueGiver)
             {
-                // Aku sederhanakan jadi langsung kirim pesan string biar fleksibel
                 UIManager.instance.ShowSuccessMessage(clueMessage, messageDuration);
             }
             
+            // Spawn Hewan
             if (hewanPrefab != null)
             {
                 Instantiate(hewanPrefab, transform.position, transform.rotation);
             }
             
+            // Lapor ke GameManager bahwa 1 jebakan beres
             if (GameManager.instance != null) 
                 GameManager.instance.OnTrapDisarmed();
             
-            Destroy(gameObject);
+            Destroy(gameObject); // Hapus kandang
         }
         else
         {
-            Debug.Log("KODE SALAH! Input: " + codeAttempt + " vs Benar: " + correctCode);
+            Debug.Log("KODE SALAH!");
             labelJudul.text = "Salah! Coba lagi.";
             inputKode.text = "";
-            
-            // Biar player tetap fokus di input field tanpa harus klik lagi (User Friendly)
             inputKode.ActivateInputField(); 
         }
     }

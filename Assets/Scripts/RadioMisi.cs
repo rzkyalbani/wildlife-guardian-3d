@@ -3,58 +3,54 @@ using TMPro;
 
 public class RadioMisi : MonoBehaviour
 {
-    [Header("Referensi UI")]
-    public GameObject interactTextObject; 
-    private TMP_Text textComponent;
-
     [Header("Pengaturan Misi")]
-    // Kita buat 'daftar' teks misi. 
-    // Kita isi di Inspector nanti.
-    [TextArea(3, 5)]
-    public string[] missionBriefings; // Daftar teks untuk tiap episode
+    // Isi teks arah mata angin/briefing di sini lewat Inspector
+    [TextArea(3, 10)] 
+    public string[] missionBriefings; 
 
-    private int currentEpisode = 0; // Melacak kita di episode berapa
+    private int currentEpisode = 0; 
     private bool isPlayerNearby = false;
-    private bool isWaitingForPlayer = true; // Radio 'aktif' menunggu pemain?
+    private bool isWaitingForPlayer = true; // Radio aktif di awal
+
+    // Kita butuh referensi UIManager biar kode lebih pendek
+    private UIManager uiManager;
 
     void Start()
     {
-        textComponent = UIManager.instance.interactTextComponent;
-        interactTextObject.SetActive(false);
+        uiManager = UIManager.instance;
+        // Kita gak perlu matikan interactTextObject di sini, biar UIManager yg atur
     }
 
-    // --- FUNGSI BARU! ---
-    // Ini akan dipanggil oleh 'GameManager' saat 1 episode selesai
+    // --- DIPANGGIL GAMEMANAGER SAAT MISI SELESAI ---
     public void ReadyForNextMission()
     {
-        Debug.Log("Radio siap untuk misi berikutnya!");
-        isWaitingForPlayer = true; // Aktifkan radio lagi
-        currentEpisode++; // Naik ke episode selanjutnya
-
-        // Cek dulu, masih ada misi nggak di daftar kita?
-        if (currentEpisode >= missionBriefings.Length)
+        Debug.Log("Radio: Misi selesai, standby untuk misi berikutnya.");
+        currentEpisode++; // Naik level
+        
+        // Cek apakah masih ada misi?
+        if (currentEpisode < missionBriefings.Length)
         {
-            // Kalau misi udah habis (tapi belum 'Tamat' dari GM)
-            // Tampilkan teks 'standby'
-            textComponent.text = "Radio hening... Sepertinya sudah aman.";
+            isWaitingForPlayer = true; // Nyalakan radio lagi
+            
+            // Opsional: Kasih efek suara 'kresek-kresek' radio kalau mau
         }
         else
         {
-            // Siapkan teks untuk misi berikutnya
-            textComponent.text = missionBriefings[currentEpisode];
+            Debug.Log("Radio: Semua misi selesai!");
+            isWaitingForPlayer = false; // Radio mati total
         }
     }
 
-    // --- FUNGSI TRIGGER (Sedikit Diubah) ---
     private void OnTriggerEnter(Collider other)
     {
-        // Cek: Apakah player? DAN Radio lagi 'nungguin' diklik?
         if (other.CompareTag("Player") && isWaitingForPlayer)
         {
             isPlayerNearby = true;
-            // Tampilkan teks misi yang sesuai
-            textComponent.text = missionBriefings[currentEpisode]; 
-            interactTextObject.SetActive(true);
+            
+            // --- PERBAIKAN DI SINI ---
+            // Jangan tampilkan briefing panjang. Tampilkan instruksi singkat aja.
+            uiManager.interactTextComponent.text = "Terima Laporan [E]";
+            uiManager.interactTextObject.SetActive(true);
         }
     }
 
@@ -63,26 +59,46 @@ public class RadioMisi : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             isPlayerNearby = false;
-            interactTextObject.SetActive(false);
+            // Sembunyikan teks "Tekan E"
+            uiManager.interactTextObject.SetActive(false);
         }
     }
 
     void Update()
     {
-        // Cek: Player dekat? Radio nungguin? DAN tekan 'E'?
         if (isPlayerNearby && isWaitingForPlayer && Input.GetKeyDown(KeyCode.E))
         {
-            Debug.Log("Player menerima Misi Episode: " + currentEpisode);
-            
-            // 1. Matikan radio (biar nggak bisa diklik berkali-kali)
-            isWaitingForPlayer = false; 
-            
-            // 2. Panggil 'Otak Utama' dan suruh 'StartMission'
-            //    sesuai 'currentEpisode'
-            GameManager.instance.StartMission(currentEpisode);
-            
-            // 3. Sembunyikan teksnya
-            interactTextObject.SetActive(false);
+            StartBriefing();
         }
+    }
+
+    void StartBriefing()
+    {
+        // 1. Matikan interaksi radio (biar gak dispam)
+        isWaitingForPlayer = false; 
+        uiManager.interactTextObject.SetActive(false); // Sembunyikan "Tekan E"
+
+        // 2. Ambil teks misi sesuai episode sekarang
+        string pesanMisi = "";
+        if (currentEpisode < missionBriefings.Length)
+        {
+            pesanMisi = missionBriefings[currentEpisode];
+        }
+        else
+        {
+            pesanMisi = "Sinyal hilang... Tidak ada laporan baru.";
+        }
+
+        // 3. TAMPILKAN LEWAT PANEL NARASI (Biar Keren!)
+        // Kita pakai fungsi ShowSuccessMessage yang udah ada (karena sama-sama nampilin teks & pause game)
+        // Atau kalau mau perfect, bikin fungsi baru ShowBriefing di UIManager, tapi ini juga bisa.
+        uiManager.ShowSuccessMessage(pesanMisi, 0); 
+        // Note: Durasi 0 gak ngaruh karena kita pakai tombol 'Lanjut'
+
+        // 4. PANGGIL GAMEMANAGER UNTUK SPAWN LEVEL
+        // Level akan muncul di background pas player lagi baca briefing
+        GameManager.instance.StartMission(currentEpisode);
+        
+        Debug.Log("Radio: Misi Episode " + currentEpisode + " dimulai.");
     }
 }

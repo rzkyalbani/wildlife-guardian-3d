@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro; 
-using UnityEngine.UI; // Wajib untuk Button
-using UnityEngine.SceneManagement; // Untuk reload scene kalau perlu
+using UnityEngine.UI; 
+using UnityEngine.SceneManagement; 
 
 public class GameManager : MonoBehaviour
 {
@@ -9,27 +9,24 @@ public class GameManager : MonoBehaviour
 
     [Header("Pengaturan UI")]
     public TMP_Text trapCounterText; 
-    public GameObject winPanel; 
     
     [Header("UI Timer & Kalah")]
-    public TMP_Text timerText; // Slot TeksTimer
-    public GameObject losePanel; // Slot PanelKalah
-    public Button retryButton; // Slot TombolRetry
+    public TMP_Text timerText; 
+    public GameObject losePanel; 
+    public Button retryButton; 
 
     [Header("Pengaturan Misi Episodik")]
-    public GameObject[] daftarPrefabMisi; 
-    public RadioMisi radioMisi; 
-    public Transform missionSpawnPoint; 
+    public GameObject[] daftarPrefabMisi; // Daftar Level/Misi
+    public RadioMisi radioMisi;           // Referensi ke Script Radio
+    public Transform missionSpawnPoint;   // Lokasi muncul misi
     
-    // Setting Waktu (Detik) - Bisa diubah di Inspector per Episode nanti
-    public float initialTimeLimit = 180f; // 3 Menit (default)
+    public float initialTimeLimit = 180f; // Waktu per misi
 
     private int trapsRemaining;
     private bool isMissionActive = false;
     private int currentEpisode = 0; 
     private GameObject currentMissionObject; 
-    
-    private float currentTime; // Waktu yang berjalan
+    private float currentTime; 
 
     void Awake()
     {
@@ -39,13 +36,11 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        // Reset semua UI
-        winPanel.SetActive(false);
+        // Reset UI saat game mulai
         losePanel.SetActive(false);
         trapCounterText.gameObject.SetActive(false); 
         timerText.gameObject.SetActive(false);
 
-        // Setup tombol retry
         if(retryButton != null)
         {
             retryButton.onClick.RemoveAllListeners();
@@ -55,18 +50,16 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        // --- LOGIKA TIMER ---
         if (isMissionActive)
         {
-            currentTime -= Time.deltaTime; // Kurangi waktu
+            currentTime -= Time.deltaTime; 
 
-            // Cek Kalah
+            // Cek Waktu Habis
             if (currentTime <= 0)
             {
                 currentTime = 0;
                 GameOver();
             }
-
             UpdateTimerUI();
         }
     }
@@ -79,22 +72,21 @@ public class GameManager : MonoBehaviour
         isMissionActive = true; 
         currentEpisode = episodeIndex; 
         
-        // Set Waktu Awal (3 Menit)
         currentTime = initialTimeLimit;
 
-        // Spawn Misi
+        // Spawn Level Misi
         if (currentMissionObject != null) Destroy(currentMissionObject);
         currentMissionObject = Instantiate(daftarPrefabMisi[episodeIndex], missionSpawnPoint.position, missionSpawnPoint.rotation, missionSpawnPoint);
         
-        // Tunda hitung jebakan 1 frame
+        // Hitung jebakan setelah jeda sebentar (biar spawn beres dulu)
         Invoke("HitungJebakan", 0.1f); 
         
-        // Munculkan Timer
         timerText.gameObject.SetActive(true);
     }
 
     void HitungJebakan()
     {
+        // PENTING: Semua Prefab Kandang harus punya Tag "Jebakan"
         GameObject[] traps = GameObject.FindGameObjectsWithTag("Jebakan");
         trapsRemaining = traps.Length;
         
@@ -102,6 +94,7 @@ public class GameManager : MonoBehaviour
         UpdateTrapUI();
     }
 
+    // --- FUNGSI DIPANGGIL SAAT KEYPAD TERBUKA ---
     public void OnTrapDisarmed()
     {
         if (!isMissionActive) return;
@@ -115,15 +108,10 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // --- FUNGSI HUKUMAN ---
     public void ApplyPenalty(float penaltySeconds)
     {
         if (!isMissionActive) return;
-        
-        currentTime -= penaltySeconds; // Kurangi waktu langsung!
-        Debug.Log("HUKUMAN! Waktu berkurang " + penaltySeconds + " detik.");
-        
-        // Efek visual merah di teks timer (opsional, simpel aja)
+        currentTime -= penaltySeconds; 
         timerText.color = Color.red;
         Invoke("ResetTimerColor", 0.5f);
     }
@@ -133,53 +121,61 @@ public class GameManager : MonoBehaviour
         timerText.color = Color.white;
     }
 
+    // --- LOGIKA MENANG PER LEVEL ---
     void MissionSuccess()
     {
         isMissionActive = false; 
         trapCounterText.gameObject.SetActive(false); 
-        timerText.gameObject.SetActive(false); // Sembunyikan timer
+        timerText.gameObject.SetActive(false); 
         
+        // Hancurkan level lama (Opsional)
         if(currentMissionObject != null) Destroy(currentMissionObject);
 
+        // Cek apakah masih ada misi selanjutnya?
         if (currentEpisode + 1 < daftarPrefabMisi.Length)
         {
-            Debug.Log("EPISODE " + currentEpisode + " SELESAI!");
+            // --- MASIH ADA LEVEL LAIN ---
+            Debug.Log("EPISODE SELESAI! Balik ke Radio.");
+            
+            // 1. Suruh Radio siap-siap
             radioMisi.ReadyForNextMission(); 
+
+            // 2. Tampilkan pesan suruh balik ke markas
+            string pesanBalik = "TARGET DIAMANKAN!\n\n" +
+                                "Area ini sudah bersih.\n" +
+                                "Kembali ke RADIO BASE CAMP untuk koordinat selanjutnya.\n\n" +
+                                "Over.";
+            
+            UIManager.instance.ShowSuccessMessage(pesanBalik, 0);
         }
         else
         {
+            // --- SUDAH LEVEL TERAKHIR (TAMAT) ---
             Debug.Log("TAMAT!");
-            Invoke("ShowWinPanel", 1f); 
+            
+            // Tampilkan Layar Menang (Ending)
+            UIManager.instance.ShowWinGame();
         }
     }
 
     void GameOver()
     {
         isMissionActive = false;
-        Debug.Log("GAME OVER - WAKTU HABIS");
-        
-        // Hancurkan misi biar bersih
         if(currentMissionObject != null) Destroy(currentMissionObject);
         
-        // Munculkan Panel Kalah
         losePanel.SetActive(true);
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         
-        // Sembunyikan UI lain
         trapCounterText.gameObject.SetActive(false);
         timerText.gameObject.SetActive(false);
     }
 
-    // Fungsi Tombol Retry
     public void RestartEpisode()
     {
-        // Sembunyikan panel kalah
         losePanel.SetActive(false);
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-
-        // Mulai ulang episode yang sama
         StartMission(currentEpisode);
     }
 
@@ -190,16 +186,8 @@ public class GameManager : MonoBehaviour
     
     void UpdateTimerUI()
     {
-        // Format Menit:Detik (Contoh 02:30)
         float minutes = Mathf.FloorToInt(currentTime / 60);
         float seconds = Mathf.FloorToInt(currentTime % 60);
         timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
-    }
-
-    void ShowWinPanel()
-    {
-        winPanel.SetActive(true);
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
     }
 }
