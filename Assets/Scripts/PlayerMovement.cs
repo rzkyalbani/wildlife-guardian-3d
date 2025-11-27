@@ -9,6 +9,9 @@ public class PlayerMovement : MonoBehaviour
     public Transform cam; 
     public Animator animator; 
     
+    [Header("Status Kamera")]
+    public bool isFPP = false; // Dikontrol oleh CameraSwitcher
+
     [Header("Pengaturan Gerak")]
     public float normalSpeed = 5.0f; 
     public float sprintSpeed = 10.0f; 
@@ -18,9 +21,9 @@ public class PlayerMovement : MonoBehaviour
     [Header("Pengaturan Lompat")]
     public float jumpHeight = 1.5f;
 
-    [Header("Audio Langkah Kaki (BARU)")]
-    public float stepIntervalWalk = 0.5f;   // Jarak bunyi pas jalan
-    public float stepIntervalSprint = 0.3f; // Jarak bunyi pas lari (lebih cepat)
+    [Header("Audio Langkah Kaki")]
+    public float stepIntervalWalk = 0.5f;   
+    public float stepIntervalSprint = 0.3f; 
     private float stepTimer = 0f;
 
     private float turnSmoothVelocity;
@@ -39,12 +42,7 @@ public class PlayerMovement : MonoBehaviour
     void Start()
     {
         controller = GetComponent<CharacterController>();
-        
         if(animator == null) animator = GetComponentInChildren<Animator>(); 
-        
-        // Setup Kursor
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
         
         // Setup Stamina
         currentStamina = maxStamina; 
@@ -57,112 +55,107 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        // 1. GRAVITASI & GROUND CHECK
+        // 1. CEK STATUS GAME (PAUSE/INTRO)
+        if (Time.timeScale == 0) return; 
+
+        // 2. AUTO-LOCK KURSOR
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+
+        // 3. GRAVITASI
         bool isGrounded = controller.isGrounded;
         if (isGrounded && playerVelocity.y < 0)
         {
-            playerVelocity.y = -2f; // Reset vertikal velocity pas napak tanah
+            playerVelocity.y = -2f; 
         }
 
-        // 2. LOMPAT
+        // 4. LOMPAT
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
-            
-            // Kalau punya animasi lompat:
-            // if(animator) animator.SetTrigger("Jump");
         }
 
-        // 3. INPUT GERAK
+        // 5. INPUT GERAK
         float horizontalInput = Input.GetAxis("Horizontal"); 
         float verticalInput = Input.GetAxis("Vertical"); 
         Vector3 direction = new Vector3(horizontalInput, 0f, verticalInput).normalized;
 
-        // 4. LOGIKA SPRINT & STAMINA
+        // 6. LOGIKA SPRINT & STAMINA
         bool isSprinting = Input.GetKey(KeyCode.LeftShift) && currentStamina > 0 && direction.magnitude >= 0.1f;
-        
-        float currentSpeed = normalSpeed;
+        float currentSpeed = isSprinting ? sprintSpeed : normalSpeed;
 
-        if (isSprinting)
-        {
-            // SPRINTING
-            currentSpeed = sprintSpeed;
-            currentStamina -= staminaDrainRate * Time.deltaTime; 
-        }
-        else
-        {
-            // WALKING / IDLE
-            currentSpeed = normalSpeed;
-            
-            // Cek: Apakah player maksa lari tapi stamina habis?
-            bool isTryingToSprint = Input.GetKey(KeyCode.LeftShift) && direction.magnitude >= 0.1f;
-            
-            // Regen cuma kalau TIDAK nekan Shift
-            if (!isTryingToSprint && currentStamina < maxStamina) 
-            {
-                currentStamina += staminaRegenRate * Time.deltaTime;
-            }
-        }
-        
-        // Update UI Stamina
+        if (isSprinting) currentStamina -= staminaDrainRate * Time.deltaTime; 
+        else if (direction.magnitude < 0.1f || !Input.GetKey(KeyCode.LeftShift)) 
+             if(currentStamina < maxStamina) currentStamina += staminaRegenRate * Time.deltaTime;
+
         currentStamina = Mathf.Clamp(currentStamina, 0, maxStamina);
         if(staminaBar != null) staminaBar.value = currentStamina;
 
-        // 5. EKSEKUSI GERAK & ROTASI
-        if (direction.magnitude >= 0.1f)
+        // --- HITUNG ARAH GERAK (FIXED) ---
+        Vector3 moveDir = Vector3.zero;
+
+        if (isFPP)
         {
-            // Hitung Rotasi (Ikuti Kamera)
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cam.eulerAngles.y;
-            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
-            transform.rotation = Quaternion.Euler(0f, angle, 0f);
-
-            // Hitung Arah Gerak
-            Vector3 moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+            // === LOGIKA FPP (FIXED) ===
+            // Kita HAPUS kode rotasi di sini biar gak tabrakan sama SimpleMouseLook.
+            // Kita cuma hitung arah jalan berdasarkan arah hadap badan saat ini.
             
-            // Gerakkan Karakter
-            controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime); 
-
-            // --- AUDIO LANGKAH KAKI (INTEGRASI) ---
-            if (isGrounded)
+            // "transform.forward" otomatis sudah diputar oleh SimpleMouseLook
+            Vector3 forwardMove = transform.forward * verticalInput;
+            Vector3 rightMove = transform.right * horizontalInput;
+            
+            moveDir = (forwardMove + rightMove).normalized;
+        }
+        else
+        {
+            // === LOGIKA TPP (Tetap Sama) ===
+            // Di TPP, script inilah yang memutar badan karakter
+            if (direction.magnitude >= 0.1f)
             {
-                // Kurangi timer
-                stepTimer -= Time.deltaTime;
+                float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cam.eulerAngles.y;
+                float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+                transform.rotation = Quaternion.Euler(0f, angle, 0f);
 
+                moveDir = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+            }
+        }
+
+        // 7. EKSEKUSI GERAK
+        // Di FPP, kita gerakkan walau direction 0 karena mungkin kita cuma muter badan (tapi velocity 0)
+        // Di TPP, kita cuma gerak kalau ada input
+        if (direction.magnitude >= 0.1f || (isFPP && moveDir.magnitude >= 0.1f)) 
+        {
+            controller.Move(moveDir.normalized * currentSpeed * Time.deltaTime);
+
+            // Audio Langkah
+            if (isGrounded && moveDir.magnitude >= 0.1f)
+            {
+                stepTimer -= Time.deltaTime;
                 if (stepTimer <= 0)
                 {
-                    // Bunyikan suara lewat AudioManager
-                    if (AudioManager.instance != null && AudioManager.instance.sfxJalan != null)
-                    {
-                        AudioManager.instance.PlaySFX(AudioManager.instance.sfxJalan);
-                    }
-
-                    // Reset timer (pilih interval Lari atau Jalan)
+                    if (AudioManager.instance) AudioManager.instance.PlaySFX(AudioManager.instance.sfxJalan);
                     stepTimer = isSprinting ? stepIntervalSprint : stepIntervalWalk;
                 }
             }
         }
         else
         {
-            // Kalau diam, reset timer langkah biar pas jalan langsung bunyi
-            stepTimer = 0.1f;
+            stepTimer = 0.1f; 
         }
 
-        // 6. TERAPKAN GRAVITASI
+        // 8. TERAPKAN GRAVITASI
         playerVelocity.y += gravityValue * Time.deltaTime;
         controller.Move(playerVelocity * Time.deltaTime);
 
-        // 7. UPDATE ANIMATOR
+        // 9. UPDATE ANIMATOR
         if(animator != null)
         {
-            // Kirim 0 kalau diam, 0.5 kalau jalan, 1 kalau lari
-            // (Sesuaikan Blend Tree kamu kalau beda angkanya)
             float animSpeed = 0f;
-            if (direction.magnitude >= 0.1f)
-            {
-                animSpeed = isSprinting ? 1f : 0.5f; 
-            }
-            
-            // Pakai DampTime biar transisi animasinya halus (gak kaku)
+            // Gunakan input asli untuk animasi, biar pas strafe tetep jalan animasinya
+            if (direction.magnitude >= 0.1f) animSpeed = isSprinting ? 1f : 0.5f; 
             animator.SetFloat("Speed", animSpeed, 0.1f, Time.deltaTime);
         }
     }
