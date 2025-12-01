@@ -79,6 +79,7 @@ public class KeypadTrap : MonoBehaviour
         inputKode.text = "";
         labelJudul.text = "Masukkan Kode Pengaman";
 
+        UIManager.instance.isUIActive = true; 
         panelGembok.SetActive(true); 
         interactTextObject.SetActive(false); 
         
@@ -95,6 +96,7 @@ public class KeypadTrap : MonoBehaviour
         UIManager.instance.tombolBuka.onClick.RemoveAllListeners();
         UIManager.instance.tombolTutup.onClick.RemoveAllListeners();
 
+        UIManager.instance.isUIActive = false;
         panelGembok.SetActive(false); 
         
         // Sembunyikan kursor lagi

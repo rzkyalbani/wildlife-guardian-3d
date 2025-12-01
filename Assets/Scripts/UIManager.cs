@@ -37,7 +37,10 @@ public class UIManager : MonoBehaviour
     public AudioSource audioSource;     
     public AudioClip sfxTombol;         
     public AudioClip sfxBenar;          
-    public AudioClip sfxMenang;         
+    public AudioClip sfxMenang;     
+
+    [Header("Status Game")]
+    public bool isUIActive = false;    
 
     // Variabel untuk mencegah teks numpuk
     private Coroutine typingCoroutine;

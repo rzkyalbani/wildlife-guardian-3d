@@ -55,8 +55,11 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        // 1. CEK STATUS GAME (PAUSE/INTRO)
-        if (Time.timeScale == 0) return; 
+        // Cek Pause & Cek UI
+        if (Time.timeScale == 0 || (UIManager.instance && UIManager.instance.isUIActive)) 
+        {
+            return; // Jangan lakukan apa-apa (Jangan kunci kursor, jangan gerak)
+        }
 
         // 2. AUTO-LOCK KURSOR
         if (Cursor.lockState != CursorLockMode.Locked)

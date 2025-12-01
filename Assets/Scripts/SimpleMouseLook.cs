@@ -7,24 +7,32 @@ public class SimpleMouseLook : MonoBehaviour
 
     private float xRotation = 0f;
 
-    // HAPUS BAGIAN START YANG NGUNCI KURSOR
-    // void Start() { ... } <-- Hapus atau kosongkan aja
-
     void Update()
     {
-        // --- TAMBAHAN PENTING ---
-        // Kalau game lagi Pause/Intro (TimeScale 0), berhenti di sini.
-        // Jangan kunci kursor, jangan putar kamera.
-        if (Time.timeScale == 0) return; 
+        // --- CEK 1: APAKAH GAME LAGI PAUSE? ---
+        if (Time.timeScale == 0) return;
 
-        // Pastikan kursor terkunci kalau game lagi JALAN
+        // --- CEK 2: APAKAH ADA UI (KEYPAD) YANG LAGI BUKA? ---
+        // Kalau UIManager bilang "UI Aktif", maka:
+        if (UIManager.instance != null && UIManager.instance.isUIActive)
+        {
+            // 1. Munculkan Kursor (Biar bisa klik)
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            
+            // 2. Hentikan fungsi nengok (return)
+            return; 
+        }
+
+        // --- KALAU TIDAK ADA UI & TIDAK PAUSE ---
+        // Kunci kursor biar bisa nengok
         if (Cursor.lockState != CursorLockMode.Locked)
         {
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
-        // -------------------------
 
+        // --- LOGIKA MOUSE LOOK (FPP) ---
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
 
